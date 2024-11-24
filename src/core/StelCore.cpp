@@ -135,7 +135,7 @@ StelCore::StelCore()
 	currentProjectorParams.flipVert = conf->value("projection/flip_vert",false).toBool();
 
 	currentProjectorParams.gravityLabels = conf->value("viewing/flag_gravity_labels").toBool();
-	
+
 	currentProjectorParams.devicePixelsPerPixel = StelApp::getInstance().getDevicePixelsPerPixel();
 
 	flagUseNutation=conf->value("astro/flag_nutation", true).toBool();
@@ -258,7 +258,7 @@ void StelCore::init()
 	}
 	setInitTodayTime(QTime::fromString(conf->value("navigation/today_time", "22:00").toString()));
 	startupTimeMode = conf->value("navigation/startup_time_mode", "actual").toString().toLower();
-	if (startupTimeMode=="preset")	
+	if (startupTimeMode=="preset")
 		setJD(presetSkyTime - static_cast<double>(getUTCOffset(presetSkyTime)) * JD_HOUR);
 	else if (startupTimeMode=="today")
 		setTodayTime(getInitTodayTime());
@@ -417,6 +417,9 @@ StelProjectorP StelCore::getProjection(StelProjector::ModelViewTranformP modelVi
 		case ProjectionHammer:
 			prj = StelProjectorP(new StelProjectorHammer(modelViewTransform));
 			break;
+		case ProjectionMollweide:
+			prj = StelProjectorP(new StelProjectorMollweide(modelViewTransform));
+			break;
 		case ProjectionCylinder:
 			prj = StelProjectorP(new StelProjectorCylinder(modelViewTransform));
 			break;
@@ -479,7 +482,7 @@ SphericalCap StelCore::getVisibleSkyArea() const
 	const LandscapeMgr* landscapeMgr = GETSTELMODULE(LandscapeMgr);
 	Vec3d up(0, 0, 1);
 	up = altAzToJ2000(up, RefractionOff);
-	
+
 	// Limit star drawing to above landscape's minimal altitude (was const=-0.035, Bug lp:1469407)
 	if (landscapeMgr->getIsLandscapeFullyVisible())
 	{
@@ -1016,7 +1019,7 @@ void StelCore::updateTransformMatrices()
 
 	// multiply static J2000 earth axis tilt (eclipticalJ2000<->equatorialJ2000)
 	// in effect, this matrix transforms from VSOP87 ecliptical J2000 to planet-based equatorial coordinates.
-	// For earth, matJ2000ToEquinoxEqu is the precession matrix.	
+	// For earth, matJ2000ToEquinoxEqu is the precession matrix.
 	matEquinoxEquDateToJ2000 = matVsop87ToJ2000 * position->getRotEquatorialToVsop87();
 	matJ2000ToEquinoxEqu = matEquinoxEquDateToJ2000.transpose();
 	matJ2000ToAltAz = matEquinoxEquToAltAz*matJ2000ToEquinoxEqu;
@@ -1024,7 +1027,7 @@ void StelCore::updateTransformMatrices()
 
 	matHeliocentricEclipticToEquinoxEqu = matJ2000ToEquinoxEqu * matVsop87ToJ2000 * Mat4d::translation(-position->getCenterVsop87Pos());
 
-	// These two next have to take into account the position of the observer on the earth/planet of observation.	
+	// These two next have to take into account the position of the observer on the earth/planet of observation.
 	Mat4d matAltAzToVsop87 = matJ2000ToVsop87 * matEquinoxEquDateToJ2000 * matAltAzToEquinoxEqu;
 	//Mat4d tmp1 = matJ2000ToVsop87 * matEquinoxEquDateToJ2000;
 
@@ -1175,7 +1178,7 @@ qint64 StelCore::getMilliSecondsOfLastJDUpdate() const
 void StelCore::setJD(double newJD)
 {
 	JD.first=newJD;
-	JD.second=computeDeltaT(newJD);	
+	JD.second=computeDeltaT(newJD);
 	resetSync();
 }
 
@@ -1248,7 +1251,7 @@ void StelCore::moveObserverToSelected()
 			StelLocation loc = getCurrentLocation();
 			if (loc.planetName != pl->getEnglishName())
 			{
-				loc.planetName = pl->getEnglishName();				
+				loc.planetName = pl->getEnglishName();
 				loc.name = "landing site";
 				loc.state = "";
 				if (pl->getPlanetType()==Planet::isObserver)
@@ -1320,7 +1323,7 @@ void StelCore::moveObserverTo(const StelLocation& target, double duration, doubl
 			// Avoid using a temporary location name to create another temporary one (otherwise it looks like loc1 -> loc2 -> loc3 etc..)
 			curLoc.name = ".";
 		}
-		SpaceShipObserver* newObs = new SpaceShipObserver(curLoc, target, d);		
+		SpaceShipObserver* newObs = new SpaceShipObserver(curLoc, target, d);
 		setObserver(newObs);
 		newObs->update(0);
 	}
@@ -1780,7 +1783,7 @@ void StelCore::addTropicalYear()
 }
 
 void StelCore::addMeanTropicalYears(double n)
-{	
+{
 	// Source: https://en.wikipedia.org/wiki/Tropical_year#Mean_tropical_year_current_value
 	addSolarDays(365.2421897*n); // The mean tropical year on January 1, 2000
 }

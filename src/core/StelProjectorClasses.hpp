@@ -113,6 +113,23 @@ protected:
 	}
 };
 
+class StelProjectorMollweide : public StelProjector
+{
+public:
+    StelProjectorMollweide(ModelViewTranformP func) : StelProjector(func) {}
+    QString getNameI18() const override;
+    QString getDescriptionI18() const override;
+    float getMaxFov() const override {return 160.f;} // Adjust as needed for Mollweide
+    bool forward(Vec3f &v) const override;
+    bool backward(Vec3d &v) const override;
+    QByteArray getForwardTransformShader() const override;
+    QByteArray getBackwardTransformShader() const override;
+protected:
+    bool hasDiscontinuity() const override {return false;} // Mollweide is continuous
+    bool intersectViewportDiscontinuityInternal(const Vec3d& p1, const Vec3d& p2) const override {return false;} // No discontinuities
+    bool intersectViewportDiscontinuityInternal(const Vec3d& capN, double capD) const override {return false;} // No spherical cap discontinuities
+};
+
 class StelProjectorCylinder : public StelProjector
 {
 public:
@@ -247,4 +264,3 @@ protected:
 };
 
 #endif // STELPROJECTIONS_HPP
-

@@ -98,6 +98,7 @@ public:
 		ProjectionOrthographic,		//!< Orthographic projection
 		ProjectionEqualArea,		//!< Equal Area projection
 		ProjectionHammer,		//!< Hammer-Aitoff projection
+		ProjectionMollweide,      //!< Mollweide projection
 		ProjectionSinusoidal,		//!< Sinusoidal projection
 		ProjectionMercator,		//!< Mercator projection
 		ProjectionMiller,		//!< Miller cylindrical projection
@@ -958,7 +959,7 @@ private:
 
 	DitheringMode ditheringMode = DitheringMode::Color888;
 
-	QString currentTimeZone;	
+	QString currentTimeZone;
 	bool flagUseDST;
 	bool flagUseCTZ; // custom time zone
 	bool startupTimeStop;

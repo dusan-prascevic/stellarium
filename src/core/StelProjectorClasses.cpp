@@ -542,8 +542,140 @@ vec3 projectorBackwardTransform(vec3 v, out bool ok)
 }
 #line 1 0
 )";
+
+
+}
+QString StelProjectorMollweide::getNameI18() const
+{
+	return q_("Hammer-Aitoff");
 }
 
+QString StelProjectorMollweide::getDescriptionI18() const
+{
+	return q_("The Hammer projection is an equal-area map projection, described by Ernst Hammer in 1892 and directly inspired by the Aitoff projection.");
+}
+
+bool StelProjectorMollweide::forward(Vec3f &v) const
+{
+    const float r = std::sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+    const float latitude = std::asin(v[1] / r);  // arcsin(y/r)
+    const float longitude = std::atan2(v[0], -v[2]);  // atan2(x, -z)
+
+    // Solve for theta using Newton-Raphson
+    const float pi_sin_lat = static_cast<float>(M_PI) * std::sin(latitude);
+    float theta = latitude;  // Initial guess
+    for (int i = 0; i < 10; ++i) {  // Max 10 iterations
+        const float delta = -(theta + std::sin(theta) - pi_sin_lat) / (1.0f + std::cos(theta));
+        theta += delta;
+        if (std::fabs(delta) < 1e-6f) break;  // Convergence
+    }
+
+    // Calculate Mollweide x and y
+    const float sqrt2 = std::sqrt(2.0f);
+    v[0] = 2.0f * sqrt2 * longitude * std::cos(theta) / static_cast<float>(M_PI);
+    v[1] = sqrt2 * std::sin(theta);
+    v[2] = r;  // Preserve radius
+
+    return true;
+}
+
+bool StelProjectorMollweide::backward(Vec3d &v) const
+{
+    const double sqrt2 = std::sqrt(2.0);
+    const double x = v[0] * static_cast<double>(M_PI) / (2.0 * sqrt2);
+    const double y = v[1] / sqrt2;
+
+    const double zsq = 1.0 - 0.25 * 0.25 * v[0] * v[0] - 0.5 * 0.5 * v[1] * v[1];
+    double z = zsq < 0.0 ? 0.0 : std::sqrt(zsq);
+
+    double theta = std::asin(y);
+    double latitude = std::asin((2.0 * theta + std::sin(2.0 * theta)) / M_PI);
+    double longitude = x / std::cos(theta);
+
+    // Convert back to spherical coordinates
+    const double cos_lat = std::cos(latitude);
+    v[2] = -cos_lat * std::cos(longitude);
+    v[0] = cos_lat * std::sin(longitude);
+    v[1] = std::sin(latitude);
+
+    return true;
+    // TODO: check if return true or return ret correct
+	// return ret;
+}
+
+QByteArray StelProjectorMollweide::getForwardTransformShader() const
+{
+    return modelViewTransform->getForwardTransformShader() + R"(
+#line 1 102
+uniform float PROJECTOR_FWD_widthStretch;
+vec3 projectorForwardTransform(vec3 v)
+{
+    const float M_SQRT2 = 1.41421356;
+    float widthStretch = PROJECTOR_FWD_widthStretch;
+
+    // Mollweide projection
+    float r = length(v);
+    float alpha = atan(v[0], -v[2]);
+    float theta = asin(v[1] / r); // Initial guess for theta
+
+    // Newton-Raphson iteration to solve theta
+    float pi_sin_theta = M_PI * sin(theta);
+    float delta;
+    for (int i = 0; i < 5; ++i) {
+        delta = (2 * theta + sin(2 * theta) - pi_sin_theta) / (2 + 2 * cos(2 * theta));
+        theta -= delta;
+        if (abs(delta) < 1e-6) break; // Convergence check
+    }
+
+    float x = 2 * M_SQRT2 / M_PI * alpha * cos(theta);
+    float y = M_SQRT2 * sin(theta);
+
+    v[0] = x * widthStretch;
+    v[1] = y;
+    v[2] = r; // Preserve radius for backward transform
+
+    return v;
+}
+#line 1 0
+)";
+}
+
+QByteArray StelProjectorMollweide::getBackwardTransformShader() const
+{
+    return modelViewTransform->getBackwardTransformShader() + R"(
+#line 1 103
+uniform float PROJECTOR_FWD_widthStretch;
+vec3 projectorBackwardTransform(vec3 v, out bool ok)
+{
+    const float M_SQRT2 = 1.41421356;
+    float widthStretch = PROJECTOR_FWD_widthStretch;
+
+    // Scale x-coordinate
+    v[0] /= widthStretch;
+
+    // Compute z (validation and correction factor)
+    float zsq = 1 - (v[0] / (2 * M_SQRT2)) * (v[0] / (2 * M_SQRT2)) - (v[1] / M_SQRT2) * (v[1] / M_SQRT2);
+    float z = zsq < 0. ? 0. : sqrt(zsq);
+    ok = zsq > 0.; // Validity of the input coordinates
+
+    // Recover theta
+    float theta = asin(v[1] / M_SQRT2);
+
+    // Recover latitude and longitude
+    float latitude = asin((2 * theta + sin(2 * theta)) / M_PI);
+    float longitude = (M_PI * v[0]) / (2 * M_SQRT2 * cos(theta));
+
+    // Convert back to 3D Cartesian coordinates
+    float cosLat = cos(latitude);
+    v[0] = cosLat * sin(longitude);
+    v[1] = sin(latitude);
+    v[2] = -cosLat * cos(longitude);
+
+    return v;
+}
+#line 1 0
+)";
+}
 
 
 QString StelProjectorCylinder::getNameI18() const
@@ -835,7 +967,7 @@ bool StelProjectorSinusoidal::forward(Vec3f &v) const
 	const float r = std::sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
 	const bool rval = (-r < v[1] && v[1] < r);
 	const float alpha = std::atan2(v[0],-v[2]);
-	const float delta = std::asin(v[1]/r);	
+	const float delta = std::asin(v[1]/r);
 	v[0] = alpha*std::cos(delta) *static_cast<float>(widthStretch);
 	v[1] = delta;
 	v[2] = r;
